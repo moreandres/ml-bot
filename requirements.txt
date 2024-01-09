@@ -1,0 +1,14 @@
+black
+numpy
+pandas
+pylint
+pytest
+pytest-clarity
+pytest-xdist
+scikit-learn
+textblob
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+google-auth-stubs
+google-api-python-client-stubs
