@@ -11,6 +11,7 @@ pandas-stubs
 pylint
 pytest
 pytest-clarity
+pytest-cov
 pytest-xdist
 scikit-learn
 textblob
