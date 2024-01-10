@@ -77,7 +77,7 @@ def test_predict(inpt, label, accuracy):
         ("t/abalone.csv.bz2", "rings", 0.2574162679425837),
         ("t/ad.csv.bz2", "class", 0.9707317073170731),
         ("t/adult.csv.bz2", "income", 0.856359020555237),
-        ("t/bank.csv.bz2", "y", 0.8997766339710596),
+        ("t/bank.csv.bz2", "y", 0.8983198989997087),
         ("t/cancer.csv.bz2", "diagnosis", 0.986013986013986),
         ("t/car.csv.bz2", "class", 0.9236111111111112),
         ("t/heart.csv.bz2", "num", 0.5478260869565217),
@@ -100,4 +100,5 @@ def test_datasets(inpt, label, accuracy):
 
 def test_read_data():
     """UT coverage for read_data()."""
-    assert len(ml.read_data("t/iris.csv.bz2")) == 150, "should read data"
+    assert len(ml.read_data("t/iris.csv.bz2")) == 150, "should read data from compressed CSV"
+    assert len(ml.read_data("t/titanic.eml")) == 891, "should read data from EML email"

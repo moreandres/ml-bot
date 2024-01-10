@@ -243,7 +243,7 @@ def convert_date_columns(data: pandas.DataFrame):
             data[column + "_holiday"] = parsed.isin(holidays)
             data[column + "_since"] = abs((parsed - datetime.now()).dt.days)
             data.drop(columns=column, inplace=True)
-            log.debug("convert %s", column)
+            log.debug("converted %s", column)
         except ValueError:
             continue
     log.debug("converted date columns")
