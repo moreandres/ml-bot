@@ -7,9 +7,11 @@ google-auth-stubs
 mypy
 numpy
 pandas
+pandas-stubs
 pylint
 pytest
 pytest-clarity
 pytest-xdist
 scikit-learn
 textblob
+types-python-dateutil
