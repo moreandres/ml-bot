@@ -8,11 +8,13 @@ mypy
 numpy
 pandas
 pandas-stubs
+pre-commit
 pylint
 pytest
 pytest-clarity
 pytest-cov
 pytest-xdist
+ruff
 scikit-learn
 textblob
 types-python-dateutil
