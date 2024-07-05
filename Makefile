@@ -3,16 +3,16 @@
 all: ${.PHONY}
 
 test:
-	pytest --cov=. --cov-report term-missing --cov-fail-under=70 -vvl --numprocesses auto
+	python3 -m pytest --cov=. --cov-report term-missing --cov-fail-under=70 -vvl --numprocesses auto
 
 static:
-	mypy ml.py ml_test.py
+	python3 -m mypy ml.py ml_test.py
 
 lint:
-	pylint ml.py ml_test.py --fail-under 8
+	python3 -m pylint ml.py ml_test.py --fail-under 8
 
 format:
-	black ml.py ml_test.py
+	python3 -m black ml.py ml_test.py
 
 setup:
-	pip install -r requirements.txt
+	pip3 install -r requirements.txt

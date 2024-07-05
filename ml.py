@@ -2,9 +2,10 @@
 
 """Script that answers predictions of emails with dataset attachments."""
 
+import base64
+import io
 import logging
 import os
-import base64
 import tempfile
 
 from datetime import datetime
@@ -30,6 +31,9 @@ from sklearn import model_selection  # type: ignore
 from sklearn.svm import SVC  # type: ignore
 from sklearn.metrics import classification_report  # type: ignore
 from sklearn.feature_extraction.text import CountVectorizer  # type: ignore
+
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -70,16 +74,6 @@ def get_gmail_credentials() -> Credentials:
         token.write(credentials.to_json())
 
     return credentials
-
-
-def process_attachment(attachment):
-    """Process single attachment."""
-    input_data = read_data(attachment)
-    target = get_target(input_data)
-    target_data = input_data[target]
-    raw_data = input_data.drop(columns=target)
-    processed_data = preprocess(raw_data)
-    input_data["prediction"] = predict(processed_data, target_data)
 
 
 def process_emails():
@@ -206,17 +200,21 @@ def read_data(file):
 def fill_missing_values(data: pandas.DataFrame):
     """Fill missing values using most frequent one."""
     log.debug("filling missing values")
+    cols = 0
     for col in data.columns:
         if data[col].isna().any():
+
             most_frequent = data[col].mode()[0]
             log.debug("filling %s column with %s", col, most_frequent)
             data[col].fillna(most_frequent, inplace=True)
-    log.debug("filled missing values")
+            cols = cols + 1
+    log.debug("filled %s missing values", cols)
 
 
 def convert_date_columns(data: pandas.DataFrame):
     """Convert date columns."""
     log.debug("converting date columns")
+    cols = 0
     for column in data.select_dtypes(include=["object"]).columns:
         try:
             parsed = data[column].apply(lambda x: parser.parse(x, fuzzy=True))
@@ -244,19 +242,22 @@ def convert_date_columns(data: pandas.DataFrame):
             data[column + "_since"] = abs((parsed - datetime.now()).dt.days)
             data.drop(columns=column, inplace=True)
             log.debug("converted %s", column)
+            cols = cols + 1
         except ValueError:
             continue
-    log.debug("converted date columns")
+    log.debug("converted %s date columns", cols)
 
 
 def remove_constant_columns(data: pandas.DataFrame):
     """Remove constant columns."""
     log.debug("removing constant columns")
+    cols = 0
     for col in data.columns:
         if data[col].nunique() == 1:
             log.debug("remove %s", col)
+            cols = cols + 1
     data.drop(data.columns[data.nunique() == 1], axis=1, inplace=True)
-    log.debug("removed constant columns")
+    log.debug("removed %s constant columns", cols)
 
 
 def encode_categorical_columns(data: pandas.DataFrame):
@@ -279,16 +280,17 @@ def encode_categorical_columns(data: pandas.DataFrame):
         columns=encoder.get_feature_names_out(),
     )
     data[encoded.columns] = encoded
-    log.debug("encoded categorical columns")
+    log.debug("encoded %s categorical columns", len(columns))
 
 
 def vectorize_text_columns(data: pandas.DataFrame):
     """Vectorize text columns."""
     log.debug("vectorizing text columns")
     categorical_columns = data.select_dtypes(include=["object"]).columns
+    cols = 0
     for col in categorical_columns:
-        data[col + "_wc"] = data[col].apply(lambda x: len(x.split()))
         if data[col].apply(lambda x: len(x.split())).mean() > 2:
+            data[col + "_wc"] = data[col].apply(lambda x: len(x.split()))
             try:
                 vectorizer = CountVectorizer(
                     stop_words="english",
@@ -299,28 +301,32 @@ def vectorize_text_columns(data: pandas.DataFrame):
                 )
                 matrix = vectorizer.fit_transform(data[col])
                 vector = pandas.DataFrame(
-                    matrix.toarray(), columns=vectorizer.get_feature_names_out()
+                    matrix.toarray(),
+                    columns=col + "_" + vectorizer.get_feature_names_out(),
                 )
                 data[vector.columns] = vector
                 log.debug("vector %s", col)
+                cols = cols + 1
             except ValueError:
                 continue
-            data[col + "_sentiment"] = data[col].apply(
+        if data[col].apply(lambda x: len(x.split())).mean() > 4:
+            data[col + "_polarity"] = data[col].apply(
                 lambda x: TextBlob(x).sentiment.polarity
             )
+            data[col + "_subjectivity"] = data[col].apply(
+                lambda x: TextBlob(x).sentiment.subjectivity
+            )
             data.drop(data.columns[data.nunique() == 1], axis=1, inplace=True)
-    log.debug("vectorized text columns")
+    log.debug("vectorized %s text columns", cols)
 
 
 def drop_categorical_columns(data: pandas.DataFrame):
     """Drop categorical columns in place."""
     log.debug("dropping categorical columns")
     categorical_columns = data.select_dtypes(include=["object"]).columns
-    log.debug(
-        "drop %s columns: %s", len(categorical_columns), categorical_columns.to_list()
-    )
+    log.debug("drop columns: %s", categorical_columns.to_list())
     data.drop(columns=categorical_columns, inplace=True)
-    log.debug("dropped categorical columns")
+    log.debug("dropped %s categorical columns", len(categorical_columns))
 
 
 def scale_numerical_columns(data: pandas.DataFrame):
@@ -329,12 +335,32 @@ def scale_numerical_columns(data: pandas.DataFrame):
     scaler = MinMaxScaler()
     scaled = scaler.fit_transform(data)
     data[data.columns] = pandas.DataFrame(scaled, columns=data.columns)
-    log.debug("scaled numerical columns")
+    log.debug("scaled %s numerical columns", len(data.columns))
+
+
+def remove_correlated_columns(data: pandas.DataFrame):
+    """Remove correlated columns."""
+    log.debug("dropping correlated columns")
+    if len(data.columns) > 10:
+        correlation_matrix = data.corr().abs()
+        upper = correlation_matrix.where(
+            numpy.triu(numpy.ones(correlation_matrix.shape), k=1).astype(bool)
+        )
+        to_drop = [column for column in upper.columns if any(upper[column] > 0.99)]
+        log.debug("dropped correlated columns: %s", to_drop)
+        data.drop(columns=to_drop, inplace=True)
+
+    log.debug("dropped correlated columns")
 
 
 def preprocess(data: pandas.DataFrame) -> pandas.DataFrame:
     """Preprocess data."""
     log.debug("preprocessing")
+
+    with io.StringIO() as buffer:
+        data.info(buf=buffer)
+        log.debug(buffer.getvalue())
+    # log.debug(data.describe().to_string())
 
     fill_missing_values(data)
     convert_date_columns(data)
@@ -343,6 +369,7 @@ def preprocess(data: pandas.DataFrame) -> pandas.DataFrame:
     vectorize_text_columns(data)
     drop_categorical_columns(data)
     scale_numerical_columns(data)
+    remove_correlated_columns(data)
 
     log.debug("preprocessed")
 
@@ -352,42 +379,29 @@ def preprocess(data: pandas.DataFrame) -> pandas.DataFrame:
 def predict(data: pandas.DataFrame, label: pandas.DataFrame) -> float:
     """Predict label."""
 
-    log.debug("predicting")
+    classifiers = {
+        "SVM": SVC(kernel="linear", random_state=42),
+        "RandomForest": RandomForestClassifier(random_state=42),
+        "LogisticRegression": LogisticRegression(random_state=42),
+    }
 
-    log.debug("predict using %s columns: %s", len(data.columns), data.columns.to_list())
+    log.debug("predicting using %s", list(classifiers.keys()))
+    log.debug("predict using %s columns %s", len(data.columns), data.columns.to_list())
 
-    log.debug("training")
+    log.debug("training with 0.25 split")
     x_train, x_test, y_train, y_test = model_selection.train_test_split(
-        data, label, random_state=42
+        data, label, test_size=0.25, random_state=42
     )
 
-    classifier = SVC(kernel="linear", random_state=42)
-    classifier.fit(x_train, y_train)
-    log.debug("trained")
+    accuracy = 0.0
+    for name, classifier in classifiers.items():
+        classifier.fit(x_train, y_train)
+        y_pred = classifier.predict(x_test)
+        new = classification_report(y_test, y_pred, output_dict=True)["accuracy"]
+        log.debug("%s model got %s accuracy", name, round(new,5))
+        accuracy = max(accuracy, new)
 
-    log.debug("testing")
-    y_pred = classifier.predict(x_test)
-    report = classification_report(y_test, y_pred, output_dict=True)
-    log.debug("classification report: %s", report)
-    log.debug("tested")
-
-    log.debug("predicted")
-    return report["accuracy"]
-
-
-def get_target(data: pandas.DataFrame) -> str:
-    """
-    Get name of target column feature.
-    Check if usual names are there, otherwise fallback to last column.
-    """
-
-    names = ["target"]
-
-    for name in names:
-        if name in data.columns:
-            return name
-
-    return data.columns[-1]
+    return accuracy
 
 
 def main() -> None:

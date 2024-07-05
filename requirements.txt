@@ -17,4 +17,5 @@ pytest-xdist
 ruff
 scikit-learn
 textblob
+textstat
 types-python-dateutil

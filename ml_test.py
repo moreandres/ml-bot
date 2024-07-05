@@ -38,7 +38,7 @@ import ml
                 "feature_categorical_bad": [0.0, 1.0, 0.0],
                 "feature_categorical_good": [1.0, 0.0, 1.0],
                 "feature_text_wc": [0.0, 1.0, 0.0],
-                "hello": [1.0, 1.0, 0.0],
+                "feature_text_hello": [1.0, 1.0, 0.0],
             },
         )
     ],
@@ -47,7 +47,8 @@ def test_preprocess(inpt, output):
     """UT coverage for preprocess() with valid data."""
     expected = pandas.DataFrame(output)
     actual = ml.preprocess(pandas.DataFrame(inpt))
-    assert expected.equals(actual), "actual should match expected"
+    print(actual.columns)
+    pandas.testing.assert_frame_equal(actual, expected)
 
 
 @pytest.mark.parametrize(
@@ -74,17 +75,117 @@ def test_predict(inpt, label, accuracy):
 @pytest.mark.parametrize(
     "inpt,label,accuracy",
     [
-        ("t/abalone.csv.bz2", "rings", 0.2574162679425837),
-        ("t/ad.csv.bz2", "class", 0.9707317073170731),
-        ("t/adult.csv.bz2", "income", 0.856359020555237),
-        ("t/bank.csv.bz2", "y", 0.8997766339710596),
-        ("t/cancer.csv.bz2", "diagnosis", 0.986013986013986),
-        ("t/car.csv.bz2", "class", 0.9305555555555556),
-        ("t/heart.csv.bz2", "num", 0.5478260869565217),
-        ("t/iris.csv.bz2", "target", 1.0),
-        ("t/mushroom.csv.bz2", "class", 1.0),
-        ("t/titanic.csv.bz2", "Survived", 0.8295964125560538),
-        ("t/titanic.eml", "Survived", 0.8295964125560538),
+        (
+            "t/abalone.csv.bz2",
+            "rings",
+            0.26029,
+        ),  # Abalone Age Prediction Using Machine Learning
+        ("t/ad.csv.bz2", "class", 0.97073),
+        (
+            "t/adult.csv.bz2",
+            "income",
+            0.85636,
+        ),  # https://www.cs.toronto.edu/~delve/data/adult/desc.html
+        (
+            "t/bank.csv.bz2",
+            "y",
+            0.91289,
+        ),  # https://archive.ics.uci.edu/dataset/222/bank+marketing
+        ("t/cancer.csv.bz2", "diagnosis", 0.98601),
+        ("t/car.csv.bz2", "class", 0.97222),
+        (
+            "t/defects.csv.bz2",
+            "DefectStatus",
+            0.96173,
+        ),  # https://www.kaggle.com/datasets/rabieelkharoua/predicting-manufacturing-defects-dataset
+        (
+            "t/fire.csv.bz2",
+            "STATUS",
+            0.97111,
+        ),  # https://www.kaggle.com/datasets/muratkokludataset/acoustic-extinguisher-fire-dataset
+        (
+            "t/flights.csv.bz2",
+            "satisfaction_v2",
+            0.9595,
+        ),  # https://www.kaggle.com/datasets/johndddddd/customer-satisfaction
+        (
+            "t/fruit.csv.bz2",
+            "Class",
+            0.92444,
+        ),  # https://www.kaggle.com/datasets/muratkokludataset/date-fruit-datasets
+        (
+            "t/gaming.csv.bz2",
+            "EngagementLevel",
+            0.8926,
+        ),  # https://www.kaggle.com/datasets/rabieelkharoua/predict-online-gaming-behavior-dataset
+        ("t/heart.csv.bz2", "num", 0.62609),
+        (
+            "t/hepatitis.csv.bz2",
+            "Category",
+            0.96104,
+        ),  # https://www.kaggle.com/datasets/fedesoriano/hepatitis-c-dataset
+        (
+            "t/iris.csv.bz2",
+            "target",
+            1.0,
+        ),  # https://archive.ics.uci.edu/dataset/53/iris
+        (
+            "t/mushroom.csv.bz2",
+            "class",
+            1.0,
+        ),  # https://archive.ics.uci.edu/dataset/848/secondary+mushroom+dataset
+        (
+            "t/pistachio.csv.bz2",
+            "Class",
+            0.92179,
+        ),  # https://www.kaggle.com/datasets/muratkokludataset/pistachio-dataset
+        (
+            "t/pumpkin.csv.bz2",
+            "Class",
+            0.8784,
+        ),  # https://www.kaggle.com/datasets/muratkokludataset/pumpkin-seeds-dataset
+        (
+            "t/stars.csv.bz2",
+            "class",
+            0.97528,
+        ),  # https://www.kaggle.com/datasets/fedesoriano/stellar-classification-dataset-sdss17
+        (
+            "t/stroke.csv.bz2",
+            "stroke",
+            0.9374,
+        ),  # https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset
+        (
+            "t/students.csv.bz2",
+            "GradeClass",
+            0.90468,
+        ),  # https://www.kaggle.com/datasets/rabieelkharoua/students-performance-dataset
+        (
+            "t/titanic.csv.bz2",
+            "Survived",
+            0.84753,
+        ),  # Will Cukierski. (2012). Titanic - Machine Learning from Disaster. Kaggle. https://kaggle.com/competitions/titanic
+        ("t/titanic.eml", "Survived", 0.84753),
+        (
+            "t/water.csv.bz2",
+            "Potability",
+            0.67766,
+        ),  # https://www.kaggle.com/datasets/adityakadiwal/water-potability
+        (
+            "t/weather.csv.bz2",
+            "RainTomorrow",
+            0.85406,
+        ),  # https://www.kaggle.com/datasets/jsphyg/weather-dataset-rattle-package
+        (
+            "t/purchase.csv.bz2",
+            "PurchaseStatus",
+            0.94933,
+        ),  # https://www.kaggle.com/datasets/rabieelkharoua/predict-customer-purchase-behavior-dataset/data
+        (
+            "t/recruit.csv.bz2",
+            "HiringDecision",
+            0.92533,
+        ),  # https://www.kaggle.com/datasets/rabieelkharoua/predicting-hiring-decisions-in-recruitment-data
+        ("t/enron.csv.bz2", "label", 0.88538),
     ],
 )
 def test_datasets(inpt, label, accuracy):
@@ -93,9 +194,9 @@ def test_datasets(inpt, label, accuracy):
     target = data[label]
     data.drop(columns=label, inplace=True)
 
-    assert (
-        ml.predict(ml.preprocess(data), target) == accuracy
-    ), "actual should match expected"
+    assert round(ml.predict(ml.preprocess(data), target), 5) == round(
+        accuracy, 5
+    ), f"actual should match expected for {label}"
 
 
 def test_read_data():
