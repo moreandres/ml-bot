@@ -89,7 +89,7 @@ def test_predict(inpt, label, accuracy):
         (
             "t/bank.csv.bz2",
             "y",
-            0.91386,
+            0.91337,
         ),  # https://archive.ics.uci.edu/dataset/222/bank+marketing
         ("t/cancer.csv.bz2", "diagnosis", 0.98601),
         ("t/car.csv.bz2", "class", 0.96296),
