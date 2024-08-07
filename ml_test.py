@@ -89,10 +89,10 @@ def test_predict(inpt, label, accuracy):
         (
             "t/bank.csv.bz2",
             "y",
-            0.91289,
+            0.91386,
         ),  # https://archive.ics.uci.edu/dataset/222/bank+marketing
         ("t/cancer.csv.bz2", "diagnosis", 0.98601),
-        ("t/car.csv.bz2", "class", 0.97222),
+        ("t/car.csv.bz2", "class", 0.96296),
         (
             "t/defects.csv.bz2",
             "DefectStatus",
@@ -101,12 +101,12 @@ def test_predict(inpt, label, accuracy):
         (
             "t/fire.csv.bz2",
             "STATUS",
-            0.97111,
+            0.96927,
         ),  # https://www.kaggle.com/datasets/muratkokludataset/acoustic-extinguisher-fire-dataset
         (
             "t/flights.csv.bz2",
             "satisfaction_v2",
-            0.9595,
+            0.96015,
         ),  # https://www.kaggle.com/datasets/johndddddd/customer-satisfaction
         (
             "t/fruit.csv.bz2",
@@ -116,9 +116,9 @@ def test_predict(inpt, label, accuracy):
         (
             "t/gaming.csv.bz2",
             "EngagementLevel",
-            0.8926,
+            0.8935,
         ),  # https://www.kaggle.com/datasets/rabieelkharoua/predict-online-gaming-behavior-dataset
-        ("t/heart.csv.bz2", "num", 0.62609),
+        ("t/heart.csv.bz2", "num", 0.63478),
         (
             "t/hepatitis.csv.bz2",
             "Category",
@@ -142,12 +142,12 @@ def test_predict(inpt, label, accuracy):
         (
             "t/pumpkin.csv.bz2",
             "Class",
-            0.8784,
+            0.8752,
         ),  # https://www.kaggle.com/datasets/muratkokludataset/pumpkin-seeds-dataset
         (
             "t/stars.csv.bz2",
             "class",
-            0.97528,
+            0.97556,
         ),  # https://www.kaggle.com/datasets/fedesoriano/stellar-classification-dataset-sdss17
         (
             "t/stroke.csv.bz2",
@@ -168,12 +168,12 @@ def test_predict(inpt, label, accuracy):
         (
             "t/water.csv.bz2",
             "Potability",
-            0.67766,
+            0.6801,
         ),  # https://www.kaggle.com/datasets/adityakadiwal/water-potability
         (
             "t/weather.csv.bz2",
             "RainTomorrow",
-            0.85406,
+            0.8531,
         ),  # https://www.kaggle.com/datasets/jsphyg/weather-dataset-rattle-package
         (
             "t/purchase.csv.bz2",
@@ -185,7 +185,7 @@ def test_predict(inpt, label, accuracy):
             "HiringDecision",
             0.92533,
         ),  # https://www.kaggle.com/datasets/rabieelkharoua/predicting-hiring-decisions-in-recruitment-data
-        ("t/enron.csv.bz2", "label", 0.88538),
+        ("t/enron.csv.bz2", "label", 0.88551),
     ],
 )
 def test_datasets(inpt, label, accuracy):

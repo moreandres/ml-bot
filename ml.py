@@ -32,8 +32,8 @@ from sklearn.svm import SVC  # type: ignore
 from sklearn.metrics import classification_report  # type: ignore
 from sklearn.feature_extraction.text import CountVectorizer  # type: ignore
 
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier  # type: ignore
+from sklearn.linear_model import LogisticRegression  # type: ignore
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -203,7 +203,6 @@ def fill_missing_values(data: pandas.DataFrame):
     cols = 0
     for col in data.columns:
         if data[col].isna().any():
-
             most_frequent = data[col].mode()[0]
             log.debug("filling %s column with %s", col, most_frequent)
             data[col].fillna(most_frequent, inplace=True)
@@ -398,7 +397,7 @@ def predict(data: pandas.DataFrame, label: pandas.DataFrame) -> float:
         classifier.fit(x_train, y_train)
         y_pred = classifier.predict(x_test)
         new = classification_report(y_test, y_pred, output_dict=True)["accuracy"]
-        log.debug("%s model got %s accuracy", name, round(new,5))
+        log.debug("%s model got %s accuracy", name, round(new, 5))
         accuracy = max(accuracy, new)
 
     return accuracy
