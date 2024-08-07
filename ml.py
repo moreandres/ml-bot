@@ -117,7 +117,7 @@ def process_emails():
         mime_message["In-Reply-To"] = headers["Message-ID"]
 
         mime_message.set_content(
-            "Hi, this is automated response with an updated attachment including predictions."
+            "This is an automated response with an updated attachment including predictions."
         )
 
         log.debug("processing %s attachments", len(attachments))
@@ -187,8 +187,10 @@ def read_data(file):
                         output_file.write(attachment.get_payload(decode=True))
                         data = pandas.read_csv(file)
                     break
-    else:
+    elif ".csv" in file:
         data = pandas.read_csv(file)
+    elif ".xlsx" in file:
+        data = pandas.read_excel(file)
 
     log.debug("read %s rows", len(data))
     log.debug("read %s columns", len(data.columns))

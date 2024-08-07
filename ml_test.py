@@ -165,6 +165,7 @@ def test_predict(inpt, label, accuracy):
             0.84753,
         ),  # Will Cukierski. (2012). Titanic - Machine Learning from Disaster. Kaggle. https://kaggle.com/competitions/titanic
         ("t/titanic.eml", "Survived", 0.84753),
+        ("t/titanic.xlsx", "Survived", 0.84753),
         (
             "t/water.csv.bz2",
             "Potability",
