@@ -103,7 +103,7 @@ def test_predict(inpt, label, expected):
             "t/mediaciones.csv.bz2",
             "reapertura",
             0.26029,
-        ),  #
+        ),
         (
             "t/abalone.csv.bz2",
             "rings",

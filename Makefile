@@ -3,7 +3,7 @@
 all: ${.PHONY}
 
 test:
-	python -m pytest --cov=. --cov-report term-missing --cov-fail-under=70 -vvl --numprocesses auto
+	python -m pytest --cov=. --cov-report term-missing --cov-fail-under=70 -vvl --numprocesses auto --durations=10
 
 static:
 	python -m mypy ml.py ml_test.py
