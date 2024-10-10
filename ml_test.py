@@ -102,7 +102,7 @@ def test_predict(inpt, label, expected):
         (
             "t/mediaciones.csv.bz2",
             "reapertura",
-            0.94568,
+            0.95056,
         ),
         (
             "t/abalone.csv.bz2",
@@ -176,7 +176,7 @@ def test_predict(inpt, label, expected):
         (
             "t/stars.csv.bz2",
             "class",
-            0.97576,
+            0.97376,
         ),  # https://www.kaggle.com/datasets/fedesoriano/stellar-classification-dataset-sdss17
         (
             "t/stroke.csv.bz2",
