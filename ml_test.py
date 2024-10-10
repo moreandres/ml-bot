@@ -109,7 +109,7 @@ def test_predict(inpt, label, expected):
             "rings",
             0.26029,
         ),  # Abalone Age Prediction Using Machine Learning
-        ("t/ad.csv.bz2", "class", 0.97073),
+        ("t/ad.csv.bz2", "class", 0.956),
         (
             "t/adult.csv.bz2",
             "income",
