@@ -110,6 +110,7 @@ def test_predict(inpt, label, expected):
             0.26,
         ),  # Abalone Age Prediction Using Machine Learning
         ("t/ad.csv.bz2", "class", 0.96),
+        ("t/soccer.csv.bz2", "Target", 0.87),
         (
             "t/adult.csv.bz2",
             "income",
