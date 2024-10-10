@@ -6,6 +6,7 @@ google-auth-oauthlib
 google-auth-stubs
 mypy
 numpy
+openpyxl
 pandas
 pandas-stubs
 pre-commit
