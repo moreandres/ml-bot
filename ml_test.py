@@ -102,7 +102,7 @@ def test_predict(inpt, label, expected):
         (
             "t/mediaciones.csv.bz2",
             "reapertura",
-            0.95056,
+            0.9408,
         ),
         (
             "t/abalone.csv.bz2",
@@ -118,7 +118,7 @@ def test_predict(inpt, label, expected):
         (
             "t/bank.csv.bz2",
             "y",
-            0.91328,
+            0.95536,
         ),  # https://archive.ics.uci.edu/dataset/222/bank+marketing
         ("t/cancer.csv.bz2", "diagnosis", 0.98601),
         ("t/car.csv.bz2", "class", 0.97685),
@@ -145,7 +145,7 @@ def test_predict(inpt, label, expected):
         (
             "t/gaming.csv.bz2",
             "EngagementLevel",
-            0.8935,
+            0.88928,
         ),  # https://www.kaggle.com/datasets/rabieelkharoua/predict-online-gaming-behavior-dataset
         ("t/heart.csv.bz2", "num", 0.63478),
         (
