@@ -160,4 +160,4 @@ cython_debug/
 .idea/
 
 .coverage*
-{credential,token}.json
+{credentials,token}.json

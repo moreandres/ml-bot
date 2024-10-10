@@ -13,6 +13,7 @@ from datetime import datetime
 from email.message import EmailMessage
 import email
 from email import policy
+import typing
 
 from textblob import TextBlob  # type: ignore
 from dateutil import parser
@@ -35,45 +36,94 @@ from sklearn.feature_extraction.text import CountVectorizer  # type: ignore
 from sklearn.ensemble import RandomForestClassifier  # type: ignore
 from sklearn.linear_model import LogisticRegression  # type: ignore
 
+
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s")
 
 
-def get_gmail_credentials() -> Credentials:
+def get_gmail_credentials(
+    secrets="credentials.json",
+    token="token.json",
+    auth_scopes=None,
+) -> Credentials:
     """
     Get Gmail credentials.
-    Reuse, refresh or get from scratch as required.
+    Get new token using secrets with manual user authorization in a browser, or refresh it.
     Use working directory to read credentials and store token JSON files.
     """
 
-    auth_scopes = ["https://www.googleapis.com/auth/gmail.modify"]
+    if auth_scopes is None:
+        auth_scopes = ["https://www.googleapis.com/auth/gmail.modify"]
 
     credentials = None
+    updated = False
 
     log.debug("getting credentials")
 
-    if os.path.exists("token.json"):
-        log.debug("reusing token")
-        credentials = Credentials.from_authorized_user_file("token.json", auth_scopes)
+    if os.path.exists(token):
+        log.debug("found token")
+        credentials = Credentials.from_authorized_user_file(token, auth_scopes)
+
         if credentials.valid:
+            log.debug("valid token")
             return credentials
 
-        log.debug("refreshing token")
-        if credentials.expired and credentials.refresh_token:
+        if credentials.refresh_token:
+            log.debug("refreshing token")
             credentials.refresh(Request())
-    else:
-        log.debug("getting new token")
-        flow = InstalledAppFlow.from_client_secrets_file(
-            "credentials.json", auth_scopes
-        )
-        credentials = flow.run_local_server(port=0)
+            updated = True
+        else:
+            log.debug("expired token")
+            credentials = None
 
-    log.debug("writing token")
-    with open("token.json", "w", encoding="utf8") as token:
-        token.write(credentials.to_json())
+    if not credentials:
+        log.debug("getting new token")
+        flow = InstalledAppFlow.from_client_secrets_file(secrets, auth_scopes)
+        credentials = flow.run_local_server(port=0)
+        updated = True
+
+    if updated:
+        log.debug("writing token")
+        with open(token, "w", encoding="utf8") as file:
+            file.write(credentials.to_json())
+
+    log.debug("got credentials")
 
     return credentials
+
+
+def split_data(data):
+    """Split data and target column. Use last one unless it is well-known."""
+
+    labels = [
+        "Survived",
+        "class",
+        "Class",
+        "HiringDecision",
+        "PurchaseStatus",
+        "RainTomorrow",
+        "Potability",
+        "GradeClass",
+        "label",
+    ]
+
+    name = data.columns[-1]
+
+    log.debug("columns are %s", data.columns.to_list())
+    log.debug("last column is %s", name)
+
+    for label in labels:
+        if label in data.columns:
+            log.debug("known target is %s", label)
+            name = label
+
+    target = pandas.DataFrame(data[name])
+    data.drop(columns=name, inplace=True)
+
+    # fill_missing_values(target)
+
+    return data, target
 
 
 def process_emails():
@@ -85,7 +135,7 @@ def process_emails():
     results = (
         service.users()
         .messages()
-        .list(userId="me", q="from:me subject:analyze has:attachment")
+        .list(userId="me", q="from:me subject:analyze is:unread has:attachment")
         .execute()
     )
 
@@ -93,83 +143,124 @@ def process_emails():
     log.debug("processing %d messages", len(messages))
 
     for message in messages:
-        message_id = message["id"]
-        log.debug("processing message %s", message_id)
+        process_email(message, service)
 
-        txt = (
+
+def process_email(message, service):
+    """Process email."""
+    message_id = message["id"]
+    log.debug("processing message id %s", message_id)
+
+    txt = (
+        service.users()
+        .messages()
+        .get(userId="me", id=message_id, format="full")
+        .execute()
+    )
+
+    payload = txt["payload"]
+    headers = {item["name"]: item["value"] for item in payload["headers"]}
+    log.debug("headers: %s", headers)
+    attachments = [part for part in payload["parts"] if part.get("filename")]
+    log.debug("attachments: %s", attachments)
+
+    mime_message = EmailMessage()
+    mime_message["To"] = headers["From"]
+    mime_message["From"] = headers["To"]
+    mime_message["Subject"] = "Re: " + headers["Subject"]
+    mime_message["References"] = headers["Message-ID"]
+    mime_message["In-Reply-To"] = headers["Message-ID"]
+
+    mime_message.set_content(
+        "This is an automated response with an updated attachment including predictions."
+    )
+
+    log.debug("processing %s attachments", len(attachments))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        log.debug("using tempdir %s", tmpdir)
+
+        for attachment in attachments:
+            process_attachment(attachment, message_id, tmpdir, mime_message, service)
+
+        encoded_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode()
+
+        _ = (
             service.users()
             .messages()
-            .get(userId="me", id=message_id, format="full")
+            .send(userId="me", body={"raw": encoded_message})
             .execute()
         )
 
-        payload = txt["payload"]
-        headers = {item["name"]: item["value"] for item in payload["headers"]}
-        log.debug("headers: %s", headers)
-        attachments = [part for part in payload["parts"] if part.get("filename")]
-        log.debug("attachments: %s", attachments)
+        log.debug("sending reply")
 
-        mime_message = EmailMessage()
-        mime_message["To"] = headers["From"]
-        mime_message["From"] = headers["To"]
-        mime_message["Subject"] = "Re: " + headers["Subject"]
-        mime_message["References"] = headers["Message-ID"]
-        mime_message["In-Reply-To"] = headers["Message-ID"]
 
-        mime_message.set_content(
-            "This is an automated response with an updated attachment including predictions."
-        )
+def process_data(data):
+    """Process data."""
 
-        log.debug("processing %s attachments", len(attachments))
+    original = data.copy()
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            log.debug("using tempdir %s", tmpdir)
+    log.debug("processing data")
+    data, target = split_data(data)
+    _, classifier = predict(preprocess(data), target)
+    log.debug("processed data")
 
-            for attachment in attachments:
-                att_id = attachment["body"]["attachmentId"]
+    log.debug("predicting data")
+    original["prediction"] = classifier.predict(data)
+    log.debug("predicted data")
 
-                attachment_filename = attachment["filename"]
-                log.debug("processing attachment %s", attachment_filename)
+    return original
 
-                att = (
-                    service.users()
-                    .messages()
-                    .attachments()
-                    .get(userId="me", messageId=message_id, id=att_id)
-                    .execute()
-                )
-                attachment_data = base64.urlsafe_b64decode(att["data"].encode("utf8"))
 
-                log.debug("saving attachment")
-                attachment_path = os.path.join(tmpdir, attachment_filename)
-                with open(attachment_path, "wb") as f:
-                    f.write(attachment_data)
+def process_attachment(attachment, message_id, tmpdir, mime_message, service):
+    """Process attachment."""
+    att_id = attachment["body"]["attachmentId"]
 
-                    maintype, subtype = attachment["mimeType"].split("/")
+    attachment_filename = attachment["filename"]
+    log.debug("processing attachment %s", attachment_filename)
 
-                    with open(attachment_filename, "rb") as fp:
-                        attachment_data = fp.read()
-                    mime_message.add_attachment(
-                        attachment_data,
-                        maintype=maintype,
-                        subtype=subtype,
-                        filename=attachment_filename,
-                    )
+    if ".csv" not in attachment_filename and ".xlsx" not in attachment_filename:
+        log.debug("not a dataset")
+        return
 
-            encoded_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode()
+    att = (
+        service.users()
+        .messages()
+        .attachments()
+        .get(userId="me", messageId=message_id, id=att_id)
+        .execute()
+    )
+    attachment_data = base64.urlsafe_b64decode(att["data"].encode("utf8"))
+    attachment_path = os.path.join(tmpdir, attachment_filename)
+    log.debug(
+        "saving attachment %s having %d bytes", attachment_path, len(attachment_data)
+    )
 
-            _ = (
-                service.users()
-                .messages()
-                .send(userId="me", body={"raw": encoded_message})
-                .execute()
-            )
+    with open(attachment_path, "wb") as file:
+        file.write(attachment_data)
 
-            log.debug("sending reply")
+    data = read_data(attachment_path)
+    data = process_data(data)
+
+    if attachment_filename.endswith(".csv"):
+        data.to_csv(attachment_filename)
+    if attachment_filename.endswith(".xlsx"):
+        data.to_excel(attachment_filename)
+
+    with open(attachment_filename, "rb") as file:
+        attachment_data = file.read()
+
+    maintype, subtype = attachment["mimeType"].split("/")
+    mime_message.add_attachment(
+        attachment_data,
+        maintype=maintype,
+        subtype=subtype,
+        filename=attachment_filename,
+    )
 
 
 def read_data(file):
-    """Read input CSV as data frame."""
+    """Read input CSV/Excel directly or attached in EML as a Pandas DataFrame."""
 
     log.debug("reading input from %s", file)
 
@@ -187,13 +278,12 @@ def read_data(file):
                         output_file.write(attachment.get_payload(decode=True))
                         data = pandas.read_csv(file)
                     break
-    elif ".csv" in file:
+    elif file.endswith(".csv.bz2") or file.endswith(".csv"):
         data = pandas.read_csv(file)
-    elif ".xlsx" in file:
+    elif file.endswith(".xlsx.bz2") or file.endswith(".xlsx"):
         data = pandas.read_excel(file)
 
-    log.debug("read %s rows", len(data))
-    log.debug("read %s columns", len(data.columns))
+    log.debug("read %s rows and %s columns", len(data), len(data.columns))
     log.debug("read input")
 
     return data
@@ -210,6 +300,14 @@ def fill_missing_values(data: pandas.DataFrame):
             data[col].fillna(most_frequent, inplace=True)
             cols = cols + 1
     log.debug("filled %s missing values", cols)
+
+
+# from sklearn.model_selection import GridSearchCV
+
+# def tune_model(model, param_grid, x_train, y_train):
+#     grid_search = GridSearchCV(estimator=model, param_grid=param_grid, cv=5)
+#     grid_search.fit(x_train, y_train)
+#     return grid_search.best_estimator_
 
 
 def convert_date_columns(data: pandas.DataFrame):
@@ -244,7 +342,7 @@ def convert_date_columns(data: pandas.DataFrame):
             data.drop(columns=column, inplace=True)
             log.debug("converted %s", column)
             cols = cols + 1
-        except ValueError:
+        except (AttributeError, ValueError):
             continue
     log.debug("converted %s date columns", cols)
 
@@ -348,7 +446,7 @@ def remove_correlated_columns(data: pandas.DataFrame):
             numpy.triu(numpy.ones(correlation_matrix.shape), k=1).astype(bool)
         )
         to_drop = [column for column in upper.columns if any(upper[column] > 0.99)]
-        log.debug("dropped correlated columns: %s", to_drop)
+        log.debug("drop correlated columns: %s", to_drop)
         data.drop(columns=to_drop, inplace=True)
 
     log.debug("dropped correlated columns")
@@ -360,8 +458,6 @@ def preprocess(data: pandas.DataFrame) -> pandas.DataFrame:
 
     with io.StringIO() as buffer:
         data.info(buf=buffer)
-        log.debug(buffer.getvalue())
-    # log.debug(data.describe().to_string())
 
     fill_missing_values(data)
     convert_date_columns(data)
@@ -377,7 +473,9 @@ def preprocess(data: pandas.DataFrame) -> pandas.DataFrame:
     return data
 
 
-def predict(data: pandas.DataFrame, label: pandas.DataFrame) -> float:
+def predict(
+    data: pandas.DataFrame, label: pandas.DataFrame
+) -> tuple[float, typing.Any | None]:
     """Predict label."""
 
     classifiers = {
@@ -386,23 +484,28 @@ def predict(data: pandas.DataFrame, label: pandas.DataFrame) -> float:
         "LogisticRegression": LogisticRegression(random_state=42),
     }
 
-    log.debug("predicting using %s", list(classifiers.keys()))
-    log.debug("predict using %s columns %s", len(data.columns), data.columns.to_list())
+    log.debug("predicting using %s classifiers", list(classifiers.keys()))
+    log.debug("predict using %d columns %s", len(data.columns), data.columns.to_list())
+    log.debug("predict using %s label", label.columns.to_list())
 
     log.debug("training with 0.25 split")
     x_train, x_test, y_train, y_test = model_selection.train_test_split(
         data, label, test_size=0.25, random_state=42
     )
 
+    best_classifier = None
+
     accuracy = 0.0
     for name, classifier in classifiers.items():
-        classifier.fit(x_train, y_train)
+        classifier.fit(x_train, y_train.values.ravel())
         y_pred = classifier.predict(x_test)
         new = classification_report(y_test, y_pred, output_dict=True)["accuracy"]
         log.debug("%s model got %s accuracy", name, round(new, 5))
-        accuracy = max(accuracy, new)
+        if new > accuracy:
+            accuracy = new
+            best_classifier = classifier
 
-    return accuracy
+    return accuracy, best_classifier
 
 
 def main() -> None:

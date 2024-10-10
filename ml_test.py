@@ -7,6 +7,32 @@ import ml
 
 
 @pytest.mark.parametrize(
+    "inpt,data,target",
+    [
+        (
+            {
+                "label": [0.0, 1.0, 0.0],
+                "feature_numerical": [1.0, 0.0, 1.0],
+            },
+            {
+                "feature_numerical": [1.0, 0.0, 1.0],
+            },
+            {
+                "label": [0.0, 1.0, 0.0],
+            },
+        )
+    ],
+)
+def test_split_data(inpt, data, target):
+    """UT coverage for split_data()"""
+    actual_data, actual_target = ml.split_data(pandas.DataFrame(inpt))
+    print(actual_data)
+    print(actual_target)
+    pandas.testing.assert_frame_equal(actual_data, pandas.DataFrame(data))
+    pandas.testing.assert_frame_equal(actual_target, pandas.DataFrame(target))
+
+
+@pytest.mark.parametrize(
     "inpt,output",
     [
         (
@@ -47,12 +73,11 @@ def test_preprocess(inpt, output):
     """UT coverage for preprocess() with valid data."""
     expected = pandas.DataFrame(output)
     actual = ml.preprocess(pandas.DataFrame(inpt))
-    print(actual.columns)
     pandas.testing.assert_frame_equal(actual, expected)
 
 
 @pytest.mark.parametrize(
-    "inpt,label,accuracy",
+    "inpt,label,expected",
     [
         (
             {
@@ -65,16 +90,20 @@ def test_preprocess(inpt, output):
         )
     ],
 )
-def test_predict(inpt, label, accuracy):
+def test_predict(inpt, label, expected):
     """Test predict()."""
-    assert (
-        ml.predict(pandas.DataFrame(inpt), pandas.DataFrame(label)) == accuracy
-    ), "actual should match expected"
+    actual, _ = ml.predict(pandas.DataFrame(inpt), pandas.DataFrame(label))
+    assert actual == expected, "actual accuracy should match expected"
 
 
 @pytest.mark.parametrize(
-    "inpt,label,accuracy",
+    "inpt,label,expected",
     [
+        (
+            "t/mediaciones.csv.bz2",
+            "reapertura",
+            0.26029,
+        ),  #
         (
             "t/abalone.csv.bz2",
             "rings",
@@ -89,10 +118,10 @@ def test_predict(inpt, label, accuracy):
         (
             "t/bank.csv.bz2",
             "y",
-            0.91337,
+            0.91328,
         ),  # https://archive.ics.uci.edu/dataset/222/bank+marketing
         ("t/cancer.csv.bz2", "diagnosis", 0.98601),
-        ("t/car.csv.bz2", "class", 0.96296),
+        ("t/car.csv.bz2", "class", 0.97685),
         (
             "t/defects.csv.bz2",
             "DefectStatus",
@@ -189,14 +218,15 @@ def test_predict(inpt, label, accuracy):
         ("t/enron.csv.bz2", "label", 0.88551),
     ],
 )
-def test_datasets(inpt, label, accuracy):
+def test_datasets(inpt, label, expected):
     """Test well-known datasets."""
     data = ml.read_data(inpt)
-    target = data[label]
+    target = data[[label]]
     data.drop(columns=label, inplace=True)
 
-    assert round(ml.predict(ml.preprocess(data), target), 5) == round(
-        accuracy, 5
+    actual, _ = ml.predict(ml.preprocess(data), target)
+    assert round(actual, 5) == round(
+        expected, 5
     ), f"actual should match expected for {label}"
 
 
