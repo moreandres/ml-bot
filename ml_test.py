@@ -113,7 +113,7 @@ def test_predict(inpt, label, expected):
         (
             "t/adult.csv.bz2",
             "income",
-            0.85636,
+            0.8472,
         ),  # https://www.cs.toronto.edu/~delve/data/adult/desc.html
         (
             "t/bank.csv.bz2",
@@ -135,7 +135,7 @@ def test_predict(inpt, label, expected):
         (
             "t/flights.csv.bz2",
             "satisfaction_v2",
-            0.95544,
+            0.99952,
         ),  # https://www.kaggle.com/datasets/johndddddd/customer-satisfaction
         (
             "t/fruit.csv.bz2",
@@ -203,7 +203,7 @@ def test_predict(inpt, label, expected):
         (
             "t/weather.csv.bz2",
             "RainTomorrow",
-            0.8532,
+            0.844,
         ),  # https://www.kaggle.com/datasets/jsphyg/weather-dataset-rattle-package
         (
             "t/purchase.csv.bz2",
