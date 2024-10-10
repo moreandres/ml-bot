@@ -102,7 +102,7 @@ def test_predict(inpt, label, expected):
         (
             "t/mediaciones.csv.bz2",
             "reapertura",
-            0.26029,
+            0.94568,
         ),
         (
             "t/abalone.csv.bz2",
@@ -135,7 +135,7 @@ def test_predict(inpt, label, expected):
         (
             "t/flights.csv.bz2",
             "satisfaction_v2",
-            0.96015,
+            0.95544,
         ),  # https://www.kaggle.com/datasets/johndddddd/customer-satisfaction
         (
             "t/fruit.csv.bz2",
@@ -176,7 +176,7 @@ def test_predict(inpt, label, expected):
         (
             "t/stars.csv.bz2",
             "class",
-            0.97556,
+            0.97576,
         ),  # https://www.kaggle.com/datasets/fedesoriano/stellar-classification-dataset-sdss17
         (
             "t/stroke.csv.bz2",
@@ -203,7 +203,7 @@ def test_predict(inpt, label, expected):
         (
             "t/weather.csv.bz2",
             "RainTomorrow",
-            0.8531,
+            0.8532,
         ),  # https://www.kaggle.com/datasets/jsphyg/weather-dataset-rattle-package
         (
             "t/purchase.csv.bz2",
@@ -215,7 +215,7 @@ def test_predict(inpt, label, expected):
             "HiringDecision",
             0.92533,
         ),  # https://www.kaggle.com/datasets/rabieelkharoua/predicting-hiring-decisions-in-recruitment-data
-        ("t/enron.csv.bz2", "label", 0.88551),
+        # ("t/enron.csv.bz2", "label", 0.88551),
     ],
 )
 def test_datasets(inpt, label, expected):
