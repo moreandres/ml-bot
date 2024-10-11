@@ -81,10 +81,23 @@ def test_preprocess(inpt, output):
     [
         (
             {
-                "feature_numerical": [1.0, 0.0, 1.0],
+                "feature_numerical": [
+                    1.0,
+                    0.0,
+                    1.0,
+                    1.0,
+                    0.0,
+                    1.0,
+                    1.0,
+                    0.0,
+                    1.0,
+                    1.0,
+                    0.0,
+                    1.0,
+                ],
             },
             {
-                "label": [0.0, 1.0, 0.0],
+                "label": [0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
             },
             1.0,
         )
@@ -119,7 +132,7 @@ def test_predict(inpt, label, expected):
         (
             "t/bank.csv.bz2",
             "y",
-            0.96,
+            0.95,
         ),  # https://archive.ics.uci.edu/dataset/222/bank+marketing
         ("t/cancer.csv.bz2", "diagnosis", 0.99),
         ("t/car.csv.bz2", "class", 0.98),

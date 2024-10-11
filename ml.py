@@ -32,9 +32,9 @@ from sklearn import model_selection  # type: ignore
 from sklearn.svm import SVC  # type: ignore
 from sklearn.metrics import classification_report  # type: ignore
 from sklearn.feature_extraction.text import CountVectorizer  # type: ignore
+from sklearn.model_selection import GridSearchCV  # type: ignore
 
 from sklearn.ensemble import RandomForestClassifier  # type: ignore
-from sklearn.linear_model import LogisticRegression  # type: ignore
 
 
 log = logging.getLogger(__name__)
@@ -302,14 +302,6 @@ def fill_missing_values(data: pandas.DataFrame):
     log.debug("filled %s missing values", cols)
 
 
-# from sklearn.model_selection import GridSearchCV
-
-# def tune_model(model, param_grid, x_train, y_train):
-#     grid_search = GridSearchCV(estimator=model, param_grid=param_grid, cv=5)
-#     grid_search.fit(x_train, y_train)
-#     return grid_search.best_estimator_
-
-
 def convert_date_columns(data: pandas.DataFrame):
     """Convert date columns."""
     log.debug("converting date columns")
@@ -481,7 +473,19 @@ def predict(
     classifiers = {
         "SVM": SVC(kernel="linear", random_state=42),
         "RandomForest": RandomForestClassifier(random_state=42),
-        "LogisticRegression": LogisticRegression(random_state=42),
+        # "LogisticRegression": LogisticRegression(random_state=42),
+    }
+
+    param_grids: typing.Dict[str, typing.Dict[str, typing.Any]] = {
+        "SVM": {},
+        "RandomForest": {},
+        # "SVM": {"C": [0.1, 1, 10], "kernel": ["linear", "rbf"]},
+        # "RandomForest": {
+        #     "n_estimators": [100, 200],
+        #     "max_depth": [None, 10, 20],
+        #     "min_samples_split": [2, 5],
+        # },
+        # "LogisticRegression": {"C": [0.1, 1, 10], "penalty": ["l2"]},
     }
 
     log.debug("predicting using %s classifiers", list(classifiers.keys()))
@@ -494,18 +498,26 @@ def predict(
     )
 
     best_classifier = None
+    best_accuracy = 0.0
 
-    accuracy = 0.0
     for name, classifier in classifiers.items():
-        classifier.fit(x_train, y_train.values.ravel())
-        y_pred = classifier.predict(x_test)
-        new = classification_report(y_test, y_pred, output_dict=True)["accuracy"]
-        log.debug("%s model got %s accuracy", name, round(new, 5))
-        if new > accuracy:
-            accuracy = new
-            best_classifier = classifier
+        log.debug("Tuning hyperparameters for %s", name)
+        grid_search = GridSearchCV(
+            estimator=classifier, param_grid=param_grids[name], cv=5, n_jobs=-1
+        )
+        grid_search.fit(x_train, y_train.values.ravel())
+        log.debug("%s best parameters: %s", name, grid_search.best_params_)
 
-    return accuracy, best_classifier
+        best_model = grid_search.best_estimator_
+        y_pred = best_model.predict(x_test)
+
+        accuracy = classification_report(y_test, y_pred, output_dict=True)["accuracy"]
+        log.debug("%s model got %s accuracy", name, round(accuracy, 5))
+        if best_accuracy < accuracy:
+            best_accuracy = accuracy
+            best_classifier = best_model
+
+    return best_accuracy, best_classifier
 
 
 def main() -> None:
