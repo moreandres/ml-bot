@@ -9,6 +9,7 @@ static:
 	python -m mypy ml.py ml_test.py
 
 lint:
+	python -m ruff check
 	python -m pylint ml.py ml_test.py --fail-under 8
 
 format:
