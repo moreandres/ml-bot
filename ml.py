@@ -14,6 +14,7 @@ from email.message import EmailMessage
 import email
 from email import policy
 import typing
+import argparse
 
 from textblob import TextBlob  # type: ignore
 from dateutil import parser
@@ -36,7 +37,6 @@ from sklearn.model_selection import GridSearchCV  # type: ignore
 
 from sklearn.ensemble import RandomForestClassifier  # type: ignore
 
-import argparse
 
 log = logging.getLogger(__name__)
 
@@ -305,14 +305,17 @@ def read_data(file):
 def fill_missing_values(data: pandas.DataFrame):
     """Fill missing values using most frequent one."""
     log.debug("filling missing values")
-    cols = 0
-    for col in data.columns:
-        if data[col].isna().any():
-            most_frequent = data[col].mode()[0]
-            log.debug("filling %s column with %s", col, most_frequent)
-            data[col].fillna(most_frequent, inplace=True)
-            cols = cols + 1
-    log.debug("filled %s missing values", cols)
+
+    missing_cols = data.columns[data.isna().any()]
+    if missing_cols.empty:
+        log.debug("no columns with missing values")
+        return
+
+    most_frequent = data[missing_cols].mode().iloc[0]
+    log.debug("filling %s with %s", missing_cols, list(most_frequent))
+    data[missing_cols] = data[missing_cols].fillna(most_frequent)
+
+    log.debug("filled %d missing values", len(missing_cols))
 
 
 def convert_date_columns(data: pandas.DataFrame):
@@ -355,13 +358,16 @@ def convert_date_columns(data: pandas.DataFrame):
 def remove_constant_columns(data: pandas.DataFrame):
     """Remove constant columns."""
     log.debug("removing constant columns")
-    cols = 0
-    for col in data.columns:
-        if data[col].nunique() == 1:
-            log.debug("remove %s", col)
-            cols = cols + 1
-    data.drop(data.columns[data.nunique() == 1], axis=1, inplace=True)
-    log.debug("removed %s constant columns", cols)
+
+    nunique_counts = data.nunique()
+    constant_cols = nunique_counts[nunique_counts == 1].index
+    none_cols = data.columns[data.isna().all()]
+    columns = constant_cols.union(none_cols)
+    log.debug("removing constant columns: %s", list(columns))
+
+    data.drop(columns=columns, inplace=True)
+
+    log.debug("removed %d columns", len(columns))
 
 
 def encode_categorical_columns(data: pandas.DataFrame):
@@ -427,7 +433,11 @@ def vectorize_text_columns(data: pandas.DataFrame):
 def drop_categorical_columns(data: pandas.DataFrame):
     """Drop categorical columns in place."""
     log.debug("dropping categorical columns")
-    categorical_columns = data.select_dtypes(include=["object"]).columns
+    categorical_columns = data.select_dtypes(include=["object", "category"]).columns
+    if len(categorical_columns) == 0:
+        log.debug("no categorical columns to drop")
+        return
+
     log.debug("drop columns: %s", categorical_columns.to_list())
     data.drop(columns=categorical_columns, inplace=True)
     log.debug("dropped %s categorical columns", len(categorical_columns))
@@ -436,6 +446,7 @@ def drop_categorical_columns(data: pandas.DataFrame):
 def scale_numerical_columns(data: pandas.DataFrame):
     """Scale numerical columns."""
     log.debug("scaling numerical columns")
+    # numerical_columns = data.select_dtypes(include=["number"]).columns
     scaler = MinMaxScaler()
     scaled = scaler.fit_transform(data)
     data[data.columns] = pandas.DataFrame(scaled, columns=data.columns)
@@ -539,6 +550,8 @@ def main(args) -> None:
 
 
 def parse_arguments():
+    """Parse arguments."""
+
     parser = argparse.ArgumentParser(
         description="Script that answers predictions of emails with dataset attachments.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
