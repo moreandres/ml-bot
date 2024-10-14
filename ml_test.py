@@ -113,6 +113,21 @@ def test_predict(inpt, label, expected):
     "inpt,label,expected",
     [
         (
+            "t/loan.csv.bz2",
+            "loan_status",
+            0.93,
+        ),
+        (
+            "t/behavior.csv.bz2",
+            "User Behavior Class",
+            1.0,
+        ),
+        (
+            "t/ev.csv.bz2",
+            "User Type",
+            0.37,
+        ),
+        (
             "t/mediaciones.csv.bz2",
             "reapertura",
             0.94,

@@ -508,7 +508,7 @@ def predict(
 
     param_grids: typing.Dict[str, typing.Dict[str, typing.Any]] = {
         "SVM": {},
-        "RandomForest": {},
+        "RandomForest": {"min_samples_split": [2]},
         # "SVM": {"C": [0.1, 1, 10], "kernel": ["linear", "rbf"]},
         # "RandomForest": {
         #     "n_estimators": [100, 200],
