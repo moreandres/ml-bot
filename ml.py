@@ -121,7 +121,7 @@ def split_data(data):
     target = pandas.DataFrame(data[name])
     data.drop(columns=name, inplace=True)
 
-    # fill_missing_values(target)
+    fill_missing_values(target)
 
     return data, target
 
@@ -235,7 +235,7 @@ def process_attachment(attachment, message_id, tmpdir, mime_message, service):
     )
     attachment_data = base64.urlsafe_b64decode(att["data"].encode("utf8"))
 
-    if len(attachment_data):
+    if len(attachment_data) == 0:
         log.debug("attachment data is empty")
         return
 
@@ -446,24 +446,30 @@ def drop_categorical_columns(data: pandas.DataFrame):
 def scale_numerical_columns(data: pandas.DataFrame):
     """Scale numerical columns."""
     log.debug("scaling numerical columns")
-    # numerical_columns = data.select_dtypes(include=["number"]).columns
+    numerical_columns = data.select_dtypes(include=["number"]).columns
+    if len(numerical_columns) == 0:
+        log.debug("no numerical columns to scale")
+        return
     scaler = MinMaxScaler()
-    scaled = scaler.fit_transform(data)
-    data[data.columns] = pandas.DataFrame(scaled, columns=data.columns)
-    log.debug("scaled %s numerical columns", len(data.columns))
+    scaled = scaler.fit_transform(data[numerical_columns])
+    data[numerical_columns] = pandas.DataFrame(scaled, columns=numerical_columns)
+    log.debug("scaled %s numerical columns", len(numerical_columns))
 
 
 def remove_correlated_columns(data: pandas.DataFrame):
     """Remove correlated columns."""
     log.debug("dropping correlated columns")
-    if len(data.columns) > 10:
-        correlation_matrix = data.corr().abs()
-        upper = correlation_matrix.where(
-            numpy.triu(numpy.ones(correlation_matrix.shape), k=1).astype(bool)
-        )
-        to_drop = [column for column in upper.columns if any(upper[column] > 0.99)]
-        log.debug("drop correlated columns: %s", to_drop)
-        data.drop(columns=to_drop, inplace=True)
+    if len(data.columns) < 10:
+        log.debug("not enough columns to remove correlated ones")
+        return
+
+    correlation_matrix = data.corr().abs()
+    upper = correlation_matrix.where(
+        numpy.triu(numpy.ones(correlation_matrix.shape), k=1).astype(bool)
+    )
+    to_drop = [column for column in upper.columns if any(upper[column] > 0.99)]
+    log.debug("drop correlated columns: %s", to_drop)
+    data.drop(columns=to_drop, inplace=True)
 
     log.debug("dropped correlated columns")
 
@@ -525,7 +531,7 @@ def predict(
     best_accuracy = 0.0
 
     for name, classifier in classifiers.items():
-        log.debug("Tuning hyperparameters for %s", name)
+        log.debug("tuning hyperparameters for %s", name)
         grid_search = GridSearchCV(
             estimator=classifier, param_grid=param_grids[name], cv=5, n_jobs=-1
         )
