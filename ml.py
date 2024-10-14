@@ -36,10 +36,9 @@ from sklearn.model_selection import GridSearchCV  # type: ignore
 
 from sklearn.ensemble import RandomForestClassifier  # type: ignore
 
+import argparse
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
-logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s")
 
 
 def get_gmail_credentials(
@@ -84,9 +83,10 @@ def get_gmail_credentials(
         updated = True
 
     if updated:
-        log.debug("writing token")
+        log.debug("caching token")
         with open(token, "w", encoding="utf8") as file:
             file.write(credentials.to_json())
+        log.debug("cached token")
 
     log.debug("got credentials")
 
@@ -126,18 +126,17 @@ def split_data(data):
     return data, target
 
 
-def process_emails():
+def process_emails(args):
     """Process emails."""
 
-    service = build("gmail", "v1", credentials=get_gmail_credentials())
+    service = build(
+        "gmail",
+        "v1",
+        credentials=get_gmail_credentials(secrets=args.credentials, token=args.token),
+    )
 
     log.debug("searching messages")
-    results = (
-        service.users()
-        .messages()
-        .list(userId="me", q="from:me subject:analyze is:unread has:attachment")
-        .execute()
-    )
+    results = service.users().messages().list(userId="me", q=args.query).execute()
 
     messages = results.get("messages", [])
     log.debug("processing %d messages", len(messages))
@@ -171,9 +170,7 @@ def process_email(message, service):
     mime_message["References"] = headers["Message-ID"]
     mime_message["In-Reply-To"] = headers["Message-ID"]
 
-    mime_message.set_content(
-        "This is an automated response with an updated attachment including predictions."
-    )
+    mime_message.set_content(args.message)
 
     log.debug("processing %s attachments", len(attachments))
 
@@ -185,14 +182,20 @@ def process_email(message, service):
 
         encoded_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode()
 
+        log.debug("sending reply")
         _ = (
             service.users()
             .messages()
             .send(userId="me", body={"raw": encoded_message})
             .execute()
         )
+        log.debug("sent reply")
 
-        log.debug("sending reply")
+        log.debug("marking message %s as read", message_id)
+        service.users().messages().modify(
+            userId="me", id=message_id, body={"removeLabelIds": ["UNREAD"]}
+        ).execute()
+        log.debug("marked message %s as read", message_id)
 
 
 def process_data(data):
@@ -231,6 +234,11 @@ def process_attachment(attachment, message_id, tmpdir, mime_message, service):
         .execute()
     )
     attachment_data = base64.urlsafe_b64decode(att["data"].encode("utf8"))
+
+    if len(attachment_data):
+        log.debug("attachment data is empty")
+        return
+
     attachment_path = os.path.join(tmpdir, attachment_filename)
     log.debug(
         "saving attachment %s having %d bytes", attachment_path, len(attachment_data)
@@ -240,6 +248,11 @@ def process_attachment(attachment, message_id, tmpdir, mime_message, service):
         file.write(attachment_data)
 
     data = read_data(attachment_path)
+
+    if data.empty:
+        log.debug("dataframe data is empty")
+        return
+
     data = process_data(data)
 
     if attachment_filename.endswith(".csv"):
@@ -520,10 +533,43 @@ def predict(
     return best_accuracy, best_classifier
 
 
-def main() -> None:
+def main(args) -> None:
     """Poll for emails to process and respond."""
-    process_emails()
+    process_emails(args)
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Script that answers predictions of emails with dataset attachments.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "-q",
+        "--query",
+        default="from:me subject:analyze is:unread has:attachment",
+        help="Gmail filter query",
+    )
+    parser.add_argument("-l", "--loglevel", default="DEBUG", help="Logging level")
+    parser.add_argument(
+        "-c", "--credentials", default="credentials.json", help="Gmail credentials"
+    )
+    parser.add_argument("-t", "--token", default="token.json", help="Gmail token")
+    parser.add_argument(
+        "-m",
+        "--message",
+        default="This is an automated response with an updated attachment including predictions.",
+        help="Reply message",
+    )
+
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_arguments()
+    log.setLevel(logging.DEBUG)
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)s %(message)s",
+        level=getattr(logging, args.loglevel.upper(), None),
+    )
+
+    main(args)
