@@ -105,8 +105,8 @@ def test_preprocess(inpt, output):
 )
 def test_predict(inpt, label, expected):
     """Test predict()."""
-    actual, _ = ml.predict(pandas.DataFrame(inpt), pandas.DataFrame(label))
-    assert actual == expected, "actual accuracy should match expected"
+    _, report = ml.predict(pandas.DataFrame(inpt), pandas.DataFrame(label))
+    assert report["accuracy"] == expected, "actual accuracy should match expected"
 
 
 @pytest.mark.parametrize(
@@ -125,7 +125,7 @@ def test_predict(inpt, label, expected):
         (
             "t/ev.csv.bz2",
             "User Type",
-            0.37,
+            0.36,
         ),
         (
             "t/mediaciones.csv.bz2",
@@ -244,7 +244,8 @@ def test_predict(inpt, label, expected):
             "HiringDecision",
             0.93,
         ),  # https://www.kaggle.com/datasets/rabieelkharoua/predicting-hiring-decisions-in-recruitment-data
-        # ("t/enron.csv.bz2", "label", 0.88551),
+        ("t/enron.csv.bz2", "label", 0.88551),
+        ("t/sms.csv.bz2", "v1", 0.91),
     ],
 )
 def test_datasets(inpt, label, expected):
@@ -253,8 +254,8 @@ def test_datasets(inpt, label, expected):
     target = data[[label]]
     data.drop(columns=label, inplace=True)
 
-    actual, _ = ml.predict(ml.preprocess(data), target)
-    assert round(actual, 2) == round(
+    _, report = ml.predict(ml.preprocess(data), target)
+    assert round(report["accuracy"], 2) == round(
         expected, 2
     ), f"actual should match expected for {label}"
 

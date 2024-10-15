@@ -11,6 +11,7 @@ import tempfile
 from datetime import datetime
 
 from email.message import EmailMessage
+from email.mime.text import MIMEText
 import email
 from email import policy
 import typing
@@ -142,10 +143,10 @@ def process_emails(args):
     log.debug("processing %d messages", len(messages))
 
     for message in messages:
-        process_email(message, service)
+        process_email(message, service, args)
 
 
-def process_email(message, service):
+def process_email(message, service, args):
     """Process email."""
     message_id = message["id"]
     log.debug("processing message id %s", message_id)
@@ -163,22 +164,48 @@ def process_email(message, service):
     attachments = [part for part in payload["parts"] if part.get("filename")]
     log.debug("attachments: %s", attachments)
 
-    mime_message = EmailMessage()
-    mime_message["To"] = headers["From"]
-    mime_message["From"] = headers["To"]
-    mime_message["Subject"] = "Re: " + headers["Subject"]
-    mime_message["References"] = headers["Message-ID"]
-    mime_message["In-Reply-To"] = headers["Message-ID"]
-
-    mime_message.set_content(args.message)
-
     log.debug("processing %s attachments", len(attachments))
 
     with tempfile.TemporaryDirectory() as tmpdir:
         log.debug("using tempdir %s", tmpdir)
 
+        mime_message = EmailMessage()
+
+        content = args.message + "\n\n"
         for attachment in attachments:
-            process_attachment(attachment, message_id, tmpdir, mime_message, service)
+            report = process_attachment(
+                attachment, message_id, tmpdir, mime_message, service
+            )
+            content = content + attachment.get("filename") + "\n" + str(report) + "\n"
+
+        mime_message["To"] = headers["From"]
+        mime_message["From"] = headers["To"]
+        mime_message["Subject"] = "Re: " + headers["Subject"]
+        mime_message["References"] = headers["Message-ID"]
+        mime_message["In-Reply-To"] = headers["Message-ID"]
+
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <title>Email Response</title>
+        <style>
+            body {{font-family: Arial, sans-serif; color: #333;}}
+            .notice {{margin-top: 20px; font-size: 12px; color: #777;}}
+        </style>
+        </head>
+        <body>
+        <div class="notice">
+            <p>This is an automated response.</p>
+        </div>
+        <div class="content">
+             <p>{content}</p>
+        </div>
+        </body>
+        </html>
+        """
+
+        mime_message.attach(MIMEText(html, "html"))
 
         encoded_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode()
 
@@ -191,11 +218,12 @@ def process_email(message, service):
         )
         log.debug("sent reply")
 
-        log.debug("marking message %s as read", message_id)
-        service.users().messages().modify(
-            userId="me", id=message_id, body={"removeLabelIds": ["UNREAD"]}
-        ).execute()
-        log.debug("marked message %s as read", message_id)
+        if not args.skip:
+            log.debug("marking message %s as read", message_id)
+            service.users().messages().modify(
+                userId="me", id=message_id, body={"removeLabelIds": ["UNREAD"]}
+            ).execute()
+            log.debug("marked message %s as read", message_id)
 
 
 def process_data(data):
@@ -205,14 +233,14 @@ def process_data(data):
 
     log.debug("processing data")
     data, target = split_data(data)
-    _, classifier = predict(preprocess(data), target)
+    classifier, report = predict(preprocess(data), target)
     log.debug("processed data")
 
     log.debug("predicting data")
     original["prediction"] = classifier.predict(data)
     log.debug("predicted data")
 
-    return original
+    return original, report
 
 
 def process_attachment(attachment, message_id, tmpdir, mime_message, service):
@@ -253,7 +281,7 @@ def process_attachment(attachment, message_id, tmpdir, mime_message, service):
         log.debug("dataframe data is empty")
         return
 
-    data = process_data(data)
+    data, report = process_data(data)
 
     if attachment_filename.endswith(".csv"):
         data.to_csv(attachment_filename)
@@ -270,6 +298,8 @@ def process_attachment(attachment, message_id, tmpdir, mime_message, service):
         subtype=subtype,
         filename=attachment_filename,
     )
+
+    return report
 
 
 def read_data(file):
@@ -289,10 +319,10 @@ def read_data(file):
                     log.debug("saving attachment %s", file)
                     with open(file, "xb") as output_file:
                         output_file.write(attachment.get_payload(decode=True))
-                        data = pandas.read_csv(file)
+                        data = pandas.read_csv(file, encoding_errors="ignore")
                     break
     elif file.endswith(".csv.bz2") or file.endswith(".csv"):
-        data = pandas.read_csv(file)
+        data = pandas.read_csv(file, encoding_errors="ignore")
     elif file.endswith(".xlsx.bz2") or file.endswith(".xlsx"):
         data = pandas.read_excel(file)
 
@@ -528,7 +558,7 @@ def predict(
     )
 
     best_classifier = None
-    best_accuracy = 0.0
+    best_report = None
 
     for name, classifier in classifiers.items():
         log.debug("tuning hyperparameters for %s", name)
@@ -541,13 +571,13 @@ def predict(
         best_model = grid_search.best_estimator_
         y_pred = best_model.predict(x_test)
 
-        accuracy = classification_report(y_test, y_pred, output_dict=True)["accuracy"]
-        log.debug("%s model got %s accuracy", name, round(accuracy, 5))
-        if best_accuracy < accuracy:
-            best_accuracy = accuracy
+        report = classification_report(y_test, y_pred, output_dict=True)
+        log.debug("%s model got %s accuracy", name, round(report["accuracy"], 5))
+        if best_report is None or best_report["accuracy"] < report["accuracy"]:
             best_classifier = best_model
+            best_report = report
 
-    return best_accuracy, best_classifier
+    return best_classifier, best_report
 
 
 def main(args) -> None:
@@ -576,8 +606,15 @@ def parse_arguments():
     parser.add_argument(
         "-m",
         "--message",
-        default="This is an automated response with an updated attachment including predictions.",
+        default="<p>Thanks, attached is your dataset prediction.</p>",
         help="Reply message",
+    )
+    parser.add_argument(
+        "-s",
+        "--skip",
+        action="store_true",
+        default=False,
+        help="Do not mark as read processed messages.",
     )
 
     return parser.parse_args()
