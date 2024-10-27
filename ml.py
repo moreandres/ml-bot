@@ -39,7 +39,7 @@ from sklearn.ensemble import RandomForestClassifier  # type: ignore
 from sklearn.ensemble import RandomForestRegressor  # type: ignore
 from sklearn.metrics import r2_score  # type: ignore
 
-from xgboost import XGBRegressor
+from xgboost import XGBRegressor  # type: ignore
 
 
 log = logging.getLogger(__name__)
@@ -539,7 +539,7 @@ def preprocess(data: pandas.DataFrame) -> pandas.DataFrame:
 
 def predict(
     data: pandas.DataFrame, label: pandas.DataFrame
-) -> tuple[float, typing.Any | None]:
+) -> tuple[typing.Any | None, typing.Any | None]:
     """Predict label."""
 
     classifiers = {
