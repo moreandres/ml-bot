@@ -125,7 +125,7 @@ def test_predict(inpt, label, expected):
         (
             "t/ev.csv.bz2",
             "User Type",
-            0.36,
+            0.38,
         ),
         (
             "t/mediaciones.csv.bz2",
