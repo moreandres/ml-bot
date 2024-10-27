@@ -135,7 +135,7 @@ def test_predict(inpt, label, expected):
         (
             "t/abalone.csv.bz2",
             "rings",
-            0.26,
+            0.53,
         ),  # Abalone Age Prediction Using Machine Learning
         ("t/ad.csv.bz2", "class", 0.96),
         ("t/soccer.csv.bz2", "Target", 0.87),
@@ -248,7 +248,27 @@ def test_predict(inpt, label, expected):
         ("t/sms.csv.bz2", "v1", 0.91),
     ],
 )
-def test_datasets(inpt, label, expected):
+def test_classification_datasets(inpt, label, expected):
+    """Test well-known datasets."""
+    data = ml.read_data(inpt)
+    target = data[[label]]
+    data.drop(columns=label, inplace=True)
+
+    _, report = ml.predict(ml.preprocess(data), target)
+    assert round(report["accuracy"], 2) == round(
+        expected, 2
+    ), f"actual should match expected for {label}"
+
+
+@pytest.mark.parametrize(
+    "inpt,label,expected",
+    [
+        ("t/bikes.csv.bz2", "Rented Bike Count", 0.89),
+        ("t/houses.csv.bz2", "price", 0.87),
+        ("t/walmart.csv.bz2", "Weekly_Sales", 0.94),
+    ],
+)
+def test_regression_datasets(inpt, label, expected):
     """Test well-known datasets."""
     data = ml.read_data(inpt)
     target = data[[label]]

@@ -35,8 +35,11 @@ from sklearn.svm import SVC  # type: ignore
 from sklearn.metrics import classification_report  # type: ignore
 from sklearn.feature_extraction.text import CountVectorizer  # type: ignore
 from sklearn.model_selection import GridSearchCV  # type: ignore
-
 from sklearn.ensemble import RandomForestClassifier  # type: ignore
+from sklearn.ensemble import RandomForestRegressor  # type: ignore
+from sklearn.metrics import r2_score  # type: ignore
+
+from xgboost import XGBRegressor
 
 
 log = logging.getLogger(__name__)
@@ -380,7 +383,7 @@ def convert_date_columns(data: pandas.DataFrame):
             data.drop(columns=column, inplace=True)
             log.debug("converted %s", column)
             cols = cols + 1
-        except (AttributeError, ValueError):
+        except (AttributeError, ValueError, TypeError):
             continue
     log.debug("converted %s date columns", cols)
 
@@ -409,10 +412,14 @@ def encode_categorical_columns(data: pandas.DataFrame):
 
     columns = []
     for col in categorical_columns:
-        if (data[col].apply(lambda x: len(x.split())) < 3).all():
-            if data[col].nunique() < 10:
-                columns.append(col)
-                log.debug("encode %s column", col)
+        try:
+            if (data[col].apply(lambda x: len(x.split())) < 3).all():
+                if data[col].nunique() < 10:
+                    columns.append(col)
+                    log.debug("encode %s column", col)
+        except AttributeError:
+            log.debug("could not encode categorical column %s", col)
+            data.drop(columns=col, inplace=True)
 
     encoder = OneHotEncoder(handle_unknown="ignore", max_categories=8)
     encoded = pandas.DataFrame(
@@ -429,34 +436,39 @@ def vectorize_text_columns(data: pandas.DataFrame):
     categorical_columns = data.select_dtypes(include=["object"]).columns
     cols = 0
     for col in categorical_columns:
-        if data[col].apply(lambda x: len(x.split())).mean() > 2:
-            data[col + "_wc"] = data[col].apply(lambda x: len(x.split()))
-            try:
-                vectorizer = CountVectorizer(
-                    stop_words="english",
-                    max_features=8,
-                    min_df=2,
-                    max_df=0.9,
-                    strip_accents="ascii",
+        try:
+            if data[col].apply(lambda x: len(x.split())).mean() > 2:
+                data[col + "_wc"] = data[col].apply(lambda x: len(x.split()))
+                try:
+                    vectorizer = CountVectorizer(
+                        stop_words="english",
+                        max_features=8,
+                        min_df=2,
+                        max_df=0.9,
+                        strip_accents="ascii",
+                    )
+                    matrix = vectorizer.fit_transform(data[col])
+                    vector = pandas.DataFrame(
+                        matrix.toarray(),
+                        columns=col + "_" + vectorizer.get_feature_names_out(),
+                    )
+                    data[vector.columns] = vector
+                    log.debug("vector %s", col)
+                    cols = cols + 1
+                except ValueError:
+                    continue
+            if data[col].apply(lambda x: len(x.split())).mean() > 4:
+                data[col + "_polarity"] = data[col].apply(
+                    lambda x: TextBlob(x).sentiment.polarity
                 )
-                matrix = vectorizer.fit_transform(data[col])
-                vector = pandas.DataFrame(
-                    matrix.toarray(),
-                    columns=col + "_" + vectorizer.get_feature_names_out(),
+                data[col + "_subjectivity"] = data[col].apply(
+                    lambda x: TextBlob(x).sentiment.subjectivity
                 )
-                data[vector.columns] = vector
-                log.debug("vector %s", col)
-                cols = cols + 1
-            except ValueError:
-                continue
-        if data[col].apply(lambda x: len(x.split())).mean() > 4:
-            data[col + "_polarity"] = data[col].apply(
-                lambda x: TextBlob(x).sentiment.polarity
-            )
-            data[col + "_subjectivity"] = data[col].apply(
-                lambda x: TextBlob(x).sentiment.subjectivity
-            )
-            data.drop(data.columns[data.nunique() == 1], axis=1, inplace=True)
+                data.drop(data.columns[data.nunique() == 1], axis=1, inplace=True)
+        except AttributeError:
+            log.debug("could not vectorize categorical column %s", col)
+            data.drop(columns=col, inplace=True)
+
     log.debug("vectorized %s text columns", cols)
 
 
@@ -548,6 +560,19 @@ def predict(
         # "LogisticRegression": {"C": [0.1, 1, 10], "penalty": ["l2"]},
     }
 
+    is_categorical = label.nunique().iloc[0] <= 10
+
+    if not is_categorical:
+        classifiers = {
+            "RandomForestRegressor": RandomForestRegressor(random_state=42),
+            "XGBRegressor": XGBRegressor(random_state=42),
+        }
+
+        param_grids = {
+            "RandomForestRegressor": {},
+            "XGBRegressor": {},
+        }
+
     log.debug("predicting using %s classifiers", list(classifiers.keys()))
     log.debug("predict using %d columns %s", len(data.columns), data.columns.to_list())
     log.debug("predict using %s label", label.columns.to_list())
@@ -571,9 +596,16 @@ def predict(
         best_model = grid_search.best_estimator_
         y_pred = best_model.predict(x_test)
 
-        report = classification_report(y_test, y_pred, output_dict=True)
+        if is_categorical:
+            report = classification_report(y_test, y_pred, output_dict=True)
+        else:
+            report = {"accuracy": r2_score(y_test, y_pred)}
+
         log.debug("%s model got %s accuracy", name, round(report["accuracy"], 5))
-        if best_report is None or best_report["accuracy"] < report["accuracy"]:
+
+        if best_report is None or (
+            is_categorical and best_report["accuracy"] < report["accuracy"]
+        ):
             best_classifier = best_model
             best_report = report
 
