@@ -52,10 +52,10 @@ def get_gmail_credentials(
 ) -> Credentials:
     """
     Get Gmail credentials.
+
     Get new token using secrets with manual user authorization in a browser, or refresh it.
     Use working directory to read credentials and store token JSON files.
     """
-
     if auth_scopes is None:
         auth_scopes = ["https://www.googleapis.com/auth/gmail.modify"]
 
@@ -99,7 +99,6 @@ def get_gmail_credentials(
 
 def split_data(data):
     """Split data and target column. Use last one unless it is well-known."""
-
     labels = [
         "Survived",
         "class",
@@ -132,7 +131,6 @@ def split_data(data):
 
 def process_emails(args):
     """Process emails."""
-
     service = build(
         "gmail",
         "v1",
@@ -231,7 +229,6 @@ def process_email(message, service, args):
 
 def process_data(data):
     """Process data."""
-
     original = data.copy()
 
     log.debug("processing data")
@@ -307,7 +304,6 @@ def process_attachment(attachment, message_id, tmpdir, mime_message, service):
 
 def read_data(file):
     """Read input CSV/Excel directly or attached in EML as a Pandas DataFrame."""
-
     log.debug("reading input from %s", file)
 
     data = None
@@ -405,7 +401,6 @@ def remove_constant_columns(data: pandas.DataFrame):
 
 def encode_categorical_columns(data: pandas.DataFrame):
     """Encode categorical columns."""
-
     log.debug("encoding categorical columns")
 
     categorical_columns = data.select_dtypes(include=["object"]).columns
@@ -541,7 +536,6 @@ def predict(
     data: pandas.DataFrame, label: pandas.DataFrame
 ) -> tuple[typing.Any | None, typing.Any | None]:
     """Predict label."""
-
     classifiers = {
         "SVM": SVC(kernel="linear", random_state=42),
         "RandomForest": RandomForestClassifier(random_state=42),
@@ -619,7 +613,6 @@ def main(args) -> None:
 
 def parse_arguments():
     """Parse arguments."""
-
     parser = argparse.ArgumentParser(
         description="Script that answers predictions of emails with dataset attachments.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,

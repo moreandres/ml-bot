@@ -24,7 +24,7 @@ import ml
     ],
 )
 def test_split_data(inpt, data, target):
-    """UT coverage for split_data()"""
+    """UT coverage for split_data()."""
     actual_data, actual_target = ml.split_data(pandas.DataFrame(inpt))
     print(actual_data)
     print(actual_target)
