@@ -113,6 +113,21 @@ def test_predict(inpt, label, expected):
     "inpt,label,expected",
     [
         (
+            "t/used.csv.bz2",
+            "price",
+            0.94,
+        ),
+        (
+            "t/life.csv.bz2",
+            "Life expectancy ",
+            0.97,
+        ),
+        (
+            "t/insurance.csv.bz2",
+            "charges",
+            0.85,
+        ),
+        (
             "t/loan.csv.bz2",
             "loan_status",
             0.93,
