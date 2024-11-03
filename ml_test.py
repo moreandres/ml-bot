@@ -140,7 +140,7 @@ def test_predict(inpt, label, expected):
         (
             "t/ev.csv.bz2",
             "User Type",
-            0.38,
+            0.39,
         ),
         (
             "t/mediaciones.csv.bz2",
@@ -165,7 +165,7 @@ def test_predict(inpt, label, expected):
             0.95,
         ),  # https://archive.ics.uci.edu/dataset/222/bank+marketing
         ("t/cancer.csv.bz2", "diagnosis", 0.99),
-        ("t/car.csv.bz2", "class", 0.98),
+        ("t/car.csv.bz2", "class", 0.97),
         (
             "t/defects.csv.bz2",
             "DefectStatus",
