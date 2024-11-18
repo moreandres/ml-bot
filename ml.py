@@ -24,7 +24,6 @@ import pandas
 from pandas.tseries.holiday import USFederalHolidayCalendar
 import numpy
 
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore
 from googleapiclient.discovery import build
@@ -60,7 +59,6 @@ def get_gmail_credentials(
         auth_scopes = ["https://www.googleapis.com/auth/gmail.modify"]
 
     credentials = None
-    updated = False
 
     log.debug("getting credentials")
 
@@ -70,29 +68,19 @@ def get_gmail_credentials(
 
         if credentials.valid:
             log.debug("valid token")
+            log.debug("got old credentials")
             return credentials
 
-        if credentials.refresh_token:
-            log.debug("refreshing token")
-            credentials.refresh(Request())
-            updated = True
-        else:
-            log.debug("expired token")
-            credentials = None
+    log.debug("getting new token")
+    flow = InstalledAppFlow.from_client_secrets_file(secrets, auth_scopes)
+    credentials = flow.run_local_server(port=0)
 
-    if not credentials:
-        log.debug("getting new token")
-        flow = InstalledAppFlow.from_client_secrets_file(secrets, auth_scopes)
-        credentials = flow.run_local_server(port=0)
-        updated = True
+    log.debug("caching token")
+    with open(token, "w", encoding="utf8") as file:
+        file.write(credentials.to_json())
+    log.debug("cached token")
 
-    if updated:
-        log.debug("caching token")
-        with open(token, "w", encoding="utf8") as file:
-            file.write(credentials.to_json())
-        log.debug("cached token")
-
-    log.debug("got credentials")
+    log.debug("got new credentials")
 
     return credentials
 
@@ -129,25 +117,27 @@ def split_data(data):
     return data, target
 
 
-def process_emails(args):
+def process_emails(arguments):
     """Process emails."""
     service = build(
         "gmail",
         "v1",
-        credentials=get_gmail_credentials(secrets=args.credentials, token=args.token),
+        credentials=get_gmail_credentials(
+            secrets=arguments.credentials, token=arguments.token
+        ),
     )
 
     log.debug("searching messages")
-    results = service.users().messages().list(userId="me", q=args.query).execute()
+    results = service.users().messages().list(userId="me", q=arguments.query).execute()
 
     messages = results.get("messages", [])
     log.debug("processing %d messages", len(messages))
 
     for message in messages:
-        process_email(message, service, args)
+        process_email(message, service, arguments)
 
 
-def process_email(message, service, args):
+def process_email(message, service, arguments):
     """Process email."""
     message_id = message["id"]
     log.debug("processing message id %s", message_id)
@@ -172,7 +162,7 @@ def process_email(message, service, args):
 
         mime_message = EmailMessage()
 
-        content = args.message + "\n\n"
+        content = arguments.message + "\n\n"
         for attachment in attachments:
             report = process_attachment(
                 attachment, message_id, tmpdir, mime_message, service
@@ -252,7 +242,7 @@ def process_attachment(attachment, message_id, tmpdir, mime_message, service):
 
     if ".csv" not in attachment_filename and ".xlsx" not in attachment_filename:
         log.debug("not a dataset")
-        return
+        return {}
 
     att = (
         service.users()
@@ -265,7 +255,7 @@ def process_attachment(attachment, message_id, tmpdir, mime_message, service):
 
     if len(attachment_data) == 0:
         log.debug("attachment data is empty")
-        return
+        return {}
 
     attachment_path = os.path.join(tmpdir, attachment_filename)
     log.debug(
@@ -279,7 +269,7 @@ def process_attachment(attachment, message_id, tmpdir, mime_message, service):
 
     if data.empty:
         log.debug("dataframe data is empty")
-        return
+        return {}
 
     data, report = process_data(data)
 
@@ -328,6 +318,12 @@ def read_data(file):
     log.debug("read %s rows and %s columns", len(data), len(data.columns))
     log.debug("read input")
 
+    buffer = io.StringIO()
+    data.info(buf=buffer)
+    info_str = buffer.getvalue()
+
+    log.debug("Dataset info:\n%s", info_str)
+
     return data
 
 
@@ -341,7 +337,7 @@ def fill_missing_values(data: pandas.DataFrame):
         return
 
     most_frequent = data[missing_cols].mode().iloc[0]
-    log.debug("filling %s with %s", missing_cols, list(most_frequent))
+    log.debug("filling %s with %s", missing_cols.to_list(), list(most_frequent))
     data[missing_cols] = data[missing_cols].fillna(most_frequent)
 
     log.debug("filled %d missing values", len(missing_cols))
@@ -351,9 +347,15 @@ def convert_date_columns(data: pandas.DataFrame):
     """Convert date columns."""
     log.debug("converting date columns")
     cols = 0
-    for column in data.select_dtypes(include=["object"]).columns:
+    for column in data.select_dtypes(include=["object", "datetime"]).columns:
         try:
-            parsed = data[column].apply(lambda x: parser.parse(x, fuzzy=True))
+            if data[column].dtype == "object":
+                parsed = pandas.to_datetime(
+                    data[column].apply(lambda x: parser.parse(x, fuzzy=True)),
+                    errors="coerce",
+                )
+            else:
+                parsed = pandas.to_datetime(data[column])
 
             data[column + "_year"] = parsed.dt.year
             data[column + "_month"] = parsed.dt.month
@@ -532,42 +534,42 @@ def preprocess(data: pandas.DataFrame) -> pandas.DataFrame:
     return data
 
 
+classifiers = {
+    True: {
+        "SVM": SVC(kernel="linear", random_state=42),
+        "RandomForest": RandomForestClassifier(random_state=42),
+        # "LogisticRegression": LogisticRegression(random_state=42),
+    },
+    False: {
+        "RandomForestRegressor": RandomForestRegressor(random_state=42),
+        "XGBRegressor": XGBRegressor(random_state=42),
+    },
+}
+
+param_grids = {
+    "SVM": {},
+    "RandomForest": {"min_samples_split": [2]},
+    # "SVM": {"C": [0.1, 1, 10], "kernel": ["linear", "rbf"]},
+    # "RandomForest": {
+    #     "n_estimators": [100, 200],
+    #     "max_depth": [None, 10, 20],
+    #     "min_samples_split": [2, 5],
+    # },
+    # "LogisticRegression": {"C": [0.1, 1, 10], "penalty": ["l2"]},
+    "RandomForestRegressor": {},
+    "XGBRegressor": {},
+}
+
+
 def predict(
     data: pandas.DataFrame, label: pandas.DataFrame
 ) -> tuple[typing.Any | None, typing.Any | None]:
     """Predict label."""
-    classifiers = {
-        "SVM": SVC(kernel="linear", random_state=42),
-        "RandomForest": RandomForestClassifier(random_state=42),
-        # "LogisticRegression": LogisticRegression(random_state=42),
-    }
-
-    param_grids: typing.Dict[str, typing.Dict[str, typing.Any]] = {
-        "SVM": {},
-        "RandomForest": {"min_samples_split": [2]},
-        # "SVM": {"C": [0.1, 1, 10], "kernel": ["linear", "rbf"]},
-        # "RandomForest": {
-        #     "n_estimators": [100, 200],
-        #     "max_depth": [None, 10, 20],
-        #     "min_samples_split": [2, 5],
-        # },
-        # "LogisticRegression": {"C": [0.1, 1, 10], "penalty": ["l2"]},
-    }
-
     is_categorical = label.nunique().iloc[0] <= 10
 
-    if not is_categorical:
-        classifiers = {
-            "RandomForestRegressor": RandomForestRegressor(random_state=42),
-            "XGBRegressor": XGBRegressor(random_state=42),
-        }
-
-        param_grids = {
-            "RandomForestRegressor": {},
-            "XGBRegressor": {},
-        }
-
-    log.debug("predicting using %s classifiers", list(classifiers.keys()))
+    log.debug(
+        "predicting using %s classifiers", list(classifiers[is_categorical].keys())
+    )
     log.debug("predict using %d columns %s", len(data.columns), data.columns.to_list())
     log.debug("predict using %s label", label.columns.to_list())
 
@@ -577,9 +579,12 @@ def predict(
     )
 
     best_classifier = None
-    best_report = None
+    best_report = {"accuracy": 0.0}
 
-    for name, classifier in classifiers.items():
+    for name, classifier in classifiers[is_categorical].items():
+        if best_report["accuracy"] > 0.99:
+            continue
+
         log.debug("tuning hyperparameters for %s", name)
         grid_search = GridSearchCV(
             estimator=classifier, param_grid=param_grids[name], cv=5, n_jobs=-1
@@ -597,18 +602,16 @@ def predict(
 
         log.debug("%s model got %s accuracy", name, round(report["accuracy"], 5))
 
-        if best_report is None or (
-            is_categorical and best_report["accuracy"] < report["accuracy"]
-        ):
+        if best_report["accuracy"] < report["accuracy"]:
             best_classifier = best_model
             best_report = report
 
     return best_classifier, best_report
 
 
-def main(args) -> None:
+def main(arguments) -> None:
     """Poll for emails to process and respond."""
-    process_emails(args)
+    process_emails(arguments)
 
 
 def parse_arguments():

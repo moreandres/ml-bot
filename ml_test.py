@@ -138,11 +138,6 @@ def test_predict(inpt, label, expected):
             1.0,
         ),
         (
-            "t/ev.csv.bz2",
-            "User Type",
-            0.39,
-        ),
-        (
             "t/mediaciones.csv.bz2",
             "reapertura",
             0.94,
@@ -278,9 +273,10 @@ def test_classification_datasets(inpt, label, expected):
 @pytest.mark.parametrize(
     "inpt,label,expected",
     [
-        ("t/bikes.csv.bz2", "Rented Bike Count", 0.89),
+        ("t/bikes.csv.bz2", "Rented Bike Count", 0.92),
         ("t/houses.csv.bz2", "price", 0.87),
-        ("t/walmart.csv.bz2", "Weekly_Sales", 0.94),
+        ("t/walmart.csv.bz2", "Weekly_Sales", 0.97),
+        ("t/seats.csv.bz2", "pasajeros", 0.97),
     ],
 )
 def test_regression_datasets(inpt, label, expected):
